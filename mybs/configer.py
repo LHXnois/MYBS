@@ -15,7 +15,7 @@ class Config(BaseModel):
 
 def initconfig(path) -> Config:
     if os.path.exists(path):
-        return Config(load_jsons(path))
+        return Config(**load_jsons(path))
     else:
         return Config(**{
             'path': path

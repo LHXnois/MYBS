@@ -20,12 +20,15 @@
     </property>
     <item>
      <widget class="QTabWidget" name="toolbox">
+      <property name="tabShape">
+       <enum>QTabWidget::Rounded</enum>
+      </property>
       <property name="currentIndex">
        <number>0</number>
       </property>
-      <widget class="QWidget" name="tab_5">
+      <widget class="QWidget" name="filetool">
        <attribute name="title">
-        <string>Tab 1</string>
+        <string>文件管理</string>
        </attribute>
        <layout class="QHBoxLayout" name="horizontalLayout_2">
         <property name="spacing">
