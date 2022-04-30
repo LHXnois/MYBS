@@ -1,26 +1,30 @@
 from .util import load_jsons, save_jsons
-import os
+from pathlib import Path
 from pydantic import BaseModel
+import os
+
 
 class Config(BaseModel):
     rootpath: str
-    fdpath: str
     suoyin: bool = False
-    def __init__(__pydantic_self__, path) -> None:
-        data = load_jsons(os.path.join(path, 'data', 'config.json'))
-        data.setdefault('fdpath', os.path.join(data['rootpath'], 'data', 'fdata.json'))
+
+    def __init__(__pydantic_self__, path: Path) -> None:
+        data = load_jsons(path.joinpath('data', 'config.json'), 
+                          default={
+                              'rootpath': path.resolve().__str__(),
+                              })
         try:
             super().__init__(**data)
         except:
             print('配置文件损坏！')
 
-    def save(self):
-        return save_jsons(self.dict(), self.path)
+    def save(self) -> bool:
+        return save_jsons(self.path, self.dict())
 
-def initconfig(path) -> Config:
-    os.makedirs(os.path.join(path, 'data'), exist_ok=True)
-    if os.path.exists(path):
-        save_jsons({
-            'rootpath': path
-        }, os.path.join(path, 'data', 'config.json'))
-    return Config(path)
+    @property
+    def fdpath(self) -> Path:
+        return Path(self.rootpath).joinpath('data', 'fdata.json')
+
+    @property
+    def path(self) -> Path:
+        return Path(self.rootpath).joinpath('data', 'config.json')

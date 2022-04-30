@@ -1,15 +1,14 @@
 from .gui import MYGUI
-from .configer import initconfig
-import os
+from .configer import Config
+from pathlib import Path
 
-workdir = os.path.dirname(__file__)
 _mybs = None
 
 class mybs:
-    def __init__(self) -> None:
+    def __init__(self, path=Path(__file__).parent) -> None:
         self.gui = MYGUI
-        self.dir = workdir
-        self.config = initconfig(self.dir)
+        self.dir = path
+        self.config = Config(self.dir)
 
     def run(self):
         self.gui.run(self.config)
