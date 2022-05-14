@@ -33,6 +33,10 @@ def filesize(s: int) -> str:
 
 import numpy as np
 from PySide6.QtCore import QObject
+from PySide6.QtGui import QValidator
+import re
+import pandas as pd
+
 
 class SupportedDtypesTranslator(QObject):
     """Represents all supported datatypes and the translations (i18n).
@@ -182,3 +186,84 @@ class SupportedDtypesTranslator(QObject):
         pass
 
 SupportedDtypes = SupportedDtypesTranslator()
+
+class DefaultValueValidator(QValidator):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.dtype = None
+
+        self.intPattern = re.compile('[-+]?\d+')
+        self.uintPattern = re.compile('\d+')
+        self.floatPattern = re.compile('[+-]? *(?:\d+(?:\.\d*)?|\.\d+)')
+        self.boolPattern = re.compile('(1|t|0|f){1}$')
+
+    def validateType(self, dtype):
+        self.dtype = dtype
+
+    def fixup(self, string):
+        pass
+
+    def validate(self, s, pos):
+        if not s:
+            # s is emtpy
+            return (QValidator.Acceptable, s, pos)
+
+        if self.dtype in SupportedDtypes.strTypes():
+            return (QValidator.Acceptable, s, pos)
+
+        elif self.dtype in SupportedDtypes.boolTypes():
+            match = re.match(self.boolPattern, s)
+            if match:
+                return (QValidator.Acceptable, s in '1t', pos)
+            else:
+                return (QValidator.Invalid, s in '1t', pos)
+
+        elif self.dtype in SupportedDtypes.datetimeTypes():
+            try:
+                ts = pd.Timestamp(s)
+            except ValueError as e:
+                return (QValidator.Intermediate, s, pos)
+            return (QValidator.Acceptable, ts, pos)
+
+        else:
+            dtypeInfo = None
+            if self.dtype in SupportedDtypes.intTypes():
+                match = re.search(self.intPattern, s)
+                if match:
+                    try:
+                        value = int(match.string)
+                    except ValueError as e:
+                        return (QValidator.Invalid, s, pos)
+
+                    dtypeInfo = np.iinfo(self.dtype)
+
+            elif self.dtype in SupportedDtypes.uintTypes():
+                match = re.search(self.uintPattern, s)
+                if match:
+                    try:
+                        value = int(match.string)
+                    except ValueError as e:
+                        return (QValidator.Invalid, s, pos)
+
+                    dtypeInfo = np.iinfo(self.dtype)
+
+            elif self.dtype in SupportedDtypes.floatTypes():
+                match = re.search(self.floatPattern, s)
+                print(match)
+                if match:
+                    try:
+                        value = float(match.string)
+                    except ValueError as e:
+                        return (QValidator.Invalid, s, pos)
+
+                    dtypeInfo = np.finfo(self.dtype)
+
+            if dtypeInfo is not None:
+                if value >= dtypeInfo.min and value <= dtypeInfo.max:
+                    return (QValidator.Acceptable, value, pos)
+                else:
+                    return (QValidator.Invalid, s, pos)
+            else:
+                return (QValidator.Invalid, s, pos)
+
+        return (QtGui.QValidator.Invalid, s, pos)

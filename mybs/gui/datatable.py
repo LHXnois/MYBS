@@ -1,5 +1,6 @@
 
-from mybs.datamaster import datamaster as dm, SupportedDtypes, DefaultValueValidator
+from mybs.datamaster import datamaster as dm, SupportedDtypes
+from mybs.util import DefaultValueValidator
 from mybs.typing import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, Slot, QKeyEvent,
                          QSpacerItem, QContextMenuEvent, QDialog, QDialogButtonBox,
                          QSizePolicy, QAbstractItemView, QLabel, QGridLayout, QValidator,

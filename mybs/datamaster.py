@@ -1,10 +1,9 @@
 from pathlib import Path
 from .typing import Config, List, Union, Optional
-from .typing import Qt, QModelIndex, QAbstractTableModel, QDateTime, QPersistentModelIndex, QValidator
+from .typing import Qt, QModelIndex, QAbstractTableModel, QPersistentModelIndex, QValidator
 import pandas as pd
 import numpy as np
-from .util import SupportedDtypes
-import re
+from .util import SupportedDtypes, DefaultValueValidator
 
 
 class datamaster(QAbstractTableModel):
@@ -13,20 +12,6 @@ class datamaster(QAbstractTableModel):
         'csv': pd.read_csv,
         'excel': pd.read_excel,
     }
-    _float_precisions = {
-        "float16": np.finfo(np.float16).precision - 2,
-        "float32": np.finfo(np.float32).precision - 1,
-        "float64": np.finfo(np.float64).precision - 1
-    }
-
-    """list of int datatypes for easy checking in data() and setData()"""
-    _intDtypes = SupportedDtypes.intTypes() + SupportedDtypes.uintTypes()
-    """list of float datatypes for easy checking in data() and setData()"""
-    _floatDtypes = SupportedDtypes.floatTypes()
-    """list of bool datatypes for easy checking in data() and setData()"""
-    _boolDtypes = SupportedDtypes.boolTypes()
-    """list of datetime datatypes for easy checking in data() and setData()"""
-    _dateDtypes = SupportedDtypes.datetimeTypes()
 
     def __init__(self, file: Path, type: str, parent=None) -> None:
         super().__init__(parent)
@@ -65,10 +50,6 @@ class datamaster(QAbstractTableModel):
 
         return flags
 
-    def setDatas(self, func, col, value) -> bool:
-        self._data.loc[self.select(func, col), col] = value
-        self.layoutChanged.emit()
-
     def setData(self, index, value, role=Qt.EditRole):
 
         if not index.isValid():
@@ -94,26 +75,12 @@ class datamaster(QAbstractTableModel):
         return False
 
     def rename(self, index=None, columns=None, **kwargs):
-        """
-        Renames the dataframe inplace calling appropriate signals.
-        Wraps pandas.DataFrame.rename(*args, **kwargs) - overrides
-        the inplace kwarg setting it to True.
-        Example use:
-        renames = {'colname1':'COLNAME_1', 'colname2':'COL2'}
-        DataFrameModel.rename(columns=renames)
-        :param args:
-            see pandas.DataFrame.rename
-        :param kwargs:
-            see pandas.DataFrame.rename
-        :return:
-            None
-        """
         kwargs['inplace'] = True
         self.layoutAboutToBeChanged.emit()
         self._data.rename(index=index, columns=columns, **kwargs)
         self.layoutChanged.emit()
 
-    def select(self, func, col=None):
+    def mask(self, func, col=None):
         if col is None:
             col = self._data.columns
 
@@ -125,24 +92,27 @@ class datamaster(QAbstractTableModel):
             return ret
         return newfunc
 
-    def mask(self, func, cols):
+    def sub(self, func, col, val):
+        col = self._data.columns[col]
+        self._data.loc[self.mask(func, col), col] = val
+        self.layoutChanged.emit()
+
+    def select(self, func, cols):
         return pd.DataFrame({
             col: list(map(func, self._data[col])) for col in cols
         })
-    def sub(self, func, col, val):
-        col = self._data.columns[col]
-        self._data.loc[self.select(func, col), col] = val
-        self.layoutChanged.emit()
+
     def dis(self, data, col):
         default = data.pop()
-        data:list.sort(key=lambda x:x[0])
+        data.sort(key=lambda x: x[0])
         col = self._data.columns[col]
+
         def func(x):
             for i in data:
-                if (x==i[0] if i[1] else x<i[0]):
+                if (x == i[0] if i[1] else x < i[0]):
                     return i[2]
             return default
-        self._data[col] = self.mask(func, [col])
+        self._data[col] = self.select(func, [col])
         self.layoutChanged.emit()
 
     def addDataFrameColumn(self, columnName, dtype=str, defaultValue=None):
@@ -185,85 +155,3 @@ class datamaster(QAbstractTableModel):
 
     def save(self):
         pass
-
-
-class DefaultValueValidator(QValidator):
-    def __init__(self, parent=None):
-        super(DefaultValueValidator, self).__init__(parent)
-        self.dtype = None
-
-        self.intPattern = re.compile('[-+]?\d+')
-        self.uintPattern = re.compile('\d+')
-        self.floatPattern = re.compile('[+-]? *(?:\d+(?:\.\d*)?|\.\d+)')
-        self.boolPattern = re.compile('(1|t|0|f){1}$')
-
-    def validateType(self, dtype):
-        self.dtype = dtype
-
-    def fixup(self, string):
-        pass
-
-    def validate(self, s, pos):
-        if not s:
-            # s is emtpy
-            return (QValidator.Acceptable, s, pos)
-
-        if self.dtype in SupportedDtypes.strTypes():
-            return (QValidator.Acceptable, s, pos)
-
-        elif self.dtype in SupportedDtypes.boolTypes():
-            match = re.match(self.boolPattern, s)
-            if match:
-                return (QValidator.Acceptable, s in '1t', pos)
-            else:
-                return (QValidator.Invalid, s in '1t', pos)
-
-        elif self.dtype in SupportedDtypes.datetimeTypes():
-            try:
-                ts = pd.Timestamp(s)
-            except ValueError as e:
-                return (QValidator.Intermediate, s, pos)
-            return (QValidator.Acceptable, ts, pos)
-
-        else:
-            dtypeInfo = None
-            if self.dtype in SupportedDtypes.intTypes():
-                match = re.search(self.intPattern, s)
-                if match:
-                    try:
-                        value = int(match.string)
-                    except ValueError as e:
-                        return (QValidator.Invalid, s, pos)
-
-                    dtypeInfo = np.iinfo(self.dtype)
-
-            elif self.dtype in SupportedDtypes.uintTypes():
-                match = re.search(self.uintPattern, s)
-                if match:
-                    try:
-                        value = int(match.string)
-                    except ValueError as e:
-                        return (QValidator.Invalid, s, pos)
-
-                    dtypeInfo = np.iinfo(self.dtype)
-
-            elif self.dtype in SupportedDtypes.floatTypes():
-                match = re.search(self.floatPattern, s)
-                print(match)
-                if match:
-                    try:
-                        value = float(match.string)
-                    except ValueError as e:
-                        return (QValidator.Invalid, s, pos)
-
-                    dtypeInfo = np.finfo(self.dtype)
-
-            if dtypeInfo is not None:
-                if value >= dtypeInfo.min and value <= dtypeInfo.max:
-                    return (QValidator.Acceptable, value, pos)
-                else:
-                    return (QValidator.Invalid, s, pos)
-            else:
-                return (QValidator.Invalid, s, pos)
-
-        return (QtGui.QValidator.Invalid, s, pos)
