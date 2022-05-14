@@ -1,25 +1,14 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'myuirpItYu.ui'
+## Form generated from reading UI file 'myuiaqKmYf.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.2.3
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
 
-from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
-    QMetaObject, QObject, QPoint, QRect,
-    QSize, QTime, QUrl, Qt)
-from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
-    QCursor, QFont, QFontDatabase, QGradient,
-    QIcon, QImage, QKeySequence, QLinearGradient,
-    QPainter, QPalette, QPixmap, QRadialGradient,
-    QTransform)
-from PySide6.QtWidgets import (QAbstractItemView, QApplication, QComboBox, QFrame,
-    QHBoxLayout, QHeaderView, QMainWindow, QMenu,
-    QMenuBar, QSizePolicy, QStatusBar, QTabWidget,
-    QToolButton, QTreeView, QVBoxLayout, QWidget)
+from mybs.typing import *
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -49,7 +38,7 @@ class Ui_MainWindow(object):
         self.ftreebutton.setIconSize(QSize(8, 8))
         self.ftreebutton.setAutoRaise(True)
 
-        self.horizontalLayout_2.addWidget(self.ftreebutton)
+        self.horizontalLayout_2.addWidget(self.ftreebutton, 0, Qt.AlignLeft)
 
         self.verticalLayout_5 = QVBoxLayout()
         self.verticalLayout_5.setSpacing(0)
@@ -122,3 +111,25 @@ class Ui_MainWindow(object):
         self.menudebug.setTitle(QCoreApplication.translate("MainWindow", u"debug", None))
     # retranslateUi
 
+class Delegate(QStyledItemDelegate):
+
+    def __init__(self):
+        super().__init__()
+
+    def createEditor(self, parent, option, index):
+        editor = QLineEdit(parent)
+        # editor.setValidator(QValidator(parent))
+        return editor
+
+    def setEditorData(self, editor, index):
+        data = index.data()
+        editor.setText(data)
+
+    def setModelData(self, editor, model, index):
+        data = editor.text()
+        txt = data
+        model.setData(index, txt)
+
+    def updateEditorGeometry(self, editor, option, index):
+        r = option.rect
+        editor.setGeometry(r)

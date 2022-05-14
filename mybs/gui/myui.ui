@@ -37,7 +37,7 @@
       </property>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_2">
-        <item>
+        <item alignment="Qt::AlignLeft">
          <widget class="QToolButton" name="ftreebutton">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Fixed" vsizetype="Expanding">

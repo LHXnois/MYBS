@@ -1,7 +1,6 @@
 from .util import load_jsons, save_jsons
 from pathlib import Path
 from pydantic import BaseModel
-import os
 
 
 class Config(BaseModel):

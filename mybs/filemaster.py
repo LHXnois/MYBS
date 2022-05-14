@@ -1,27 +1,41 @@
 from pathlib import Path
+from os import stat
+import time
 from .typing import Config, List, Union
-from .typing import QAbstractItemModel, Optional, Qt, QModelIndex, QFileSystemWatcher, QAbstractListModel, QIcon
-from .util import load_jsons, save_jsons
-
-
+from .typing import QAbstractItemModel, Optional, Qt, QModelIndex, QFileSystemWatcher, QIcon
+from .util import load_jsons, save_jsons, filesize
+from typing import Optional
 
 class treenode:
-    def __init__(self, parent, name: str, isfile: bool = False) -> None:
+    typelist = {
+        '.json': 'json',
+        '.csv': 'csv',
+        '.excel': 'excel',
+        '.xls': 'excel',
+        '.xlsx': 'excel'
+    }
+
+    def __init__(self, parent, name: str, isfile: bool = False, setting=None) -> None:
         self.parent = parent
-        if isfile:
-            self.file = Path(name)
+        self.isfile = isfile
+        self.file = Path(name).resolve() if isfile else name
+        self.name = self.file.name if isfile else name
+        self.setting = setting if setting is not None else {'open': {}}
         self.datas = [self.file.name, 'file', name] if isfile else [
             name, 'dir']
-        self.isfile = isfile
         self.chi = []
         self.parent: treenode
         self.datas: List[str]
         self.chi: List[treenode]
 
-    def append(self, name, isfile=False):
-        child = treenode(self, name, isfile)
+    def append(self, child, isfile=False, setting=None):
+        if not isinstance(child, treenode):
+            child = treenode(self, child, isfile, setting)
         self.chi.append(child)
         return child
+
+    def remove(self, row):
+        return self.chi.pop(row)
 
     def child(self, row):
         return self.chi[row]
@@ -37,12 +51,27 @@ class treenode:
         return len(self.chi)
 
     def columnCount(self):
-        return len(self.datas)
+        return 3
 
     def data(self, column):
-        if column < len(self.datas):
-            return self.datas[column]
+        if column == 0:
+            return self.name
+        if column == 1:
+            return 'file' if self.isfile else 'dir'
+        if column == 2:
+            if self.isfile:
+                return str(self.file)
+            if self.parent is None:
+                return ''
+            return self.parent.data(2)+'/'+self.name
         return None
+
+    def setdata(self, col, value):
+        if col == 0:
+            if self.isfile:
+                return
+            self.file = value
+            self.name = value
 
     def row(self):
         if self.parent:
@@ -51,14 +80,22 @@ class treenode:
 
     def todict(self):
         return {
-            i.datas[2] if i.isfile else i.datas[0]: None if i.isfile else i.todict() for i in self.chi
+            'name': str(self.file),
+            'isfile': self.isfile,
+            'setting': self.setting,
+            'child': [i.todict() for i in self.chi]
         }
 
     def fileinfo(self):
         if self.isfile:
-            return self.file.name
-    def read(self):
-        pass
+            info = stat(self.file.resolve().__str__())
+
+            return f'{self.file.name}      Size:  {filesize(info.st_size)}     创建时间：{time.ctime(info.st_ctime)}'
+
+    @property
+    def type(self):
+        if self.isfile:
+            return self.typelist.get(self.file.suffix)
 
 
 class filemaster(QAbstractItemModel):
@@ -90,7 +127,7 @@ class filemaster(QAbstractItemModel):
             parent = self.rootnode
         i = len(parent.chi)
         self.beginRemoveRows(self._index(parent), i, i)
-        parent.chi.pop(row)
+        parent.remove(row)
         self.endRemoveRows()
         self.layoutChanged.emit()
 
@@ -100,24 +137,24 @@ class filemaster(QAbstractItemModel):
             return
         i = len(parent.chi)
         self.beginRemoveRows(self._index(parent), i, i)
-        parent.chi.pop(node.row())
+        parent.remove(node.row())
         self.endRemoveRows()
         self.layoutChanged.emit()
 
-    def appends(self, name: str, chi: dict, parent=None):
-        node = self.append(name, parent, chi is None)
-        if chi and node:
-            for k, v in chi.items():
-                self.appends(k, v, node)
+    def appends(self, name, parent=None, isfile=False, setting=None, child=[]):
+        node = self.append(name, parent, isfile, setting)
+        if node:
+            for i in child:
+                self.appends(**i, parent=node)
 
-    def append(self, name, parent: Optional[treenode] = None, isfile=False):
+    def append(self, name, parent: Optional[treenode] = None, isfile=False, setting=None):
         if parent is None:
             parent = self.rootnode
         if isfile and not self.fw.addPath(name):
             return
         i = len(parent.chi)
         self.beginInsertRows(self._index(parent), i, i)
-        node = parent.append(name, isfile)
+        node = parent.append(name, isfile, setting)
         self.endInsertRows()
 
         self.layoutChanged.emit()
@@ -137,7 +174,7 @@ class filemaster(QAbstractItemModel):
         flags = QAbstractItemModel.flags(self, index)
         col = index.column()
         ind = index.internalPointer()
-        if not ind.isfile:
+        if col == 0 and not ind.isfile:
             flags |= Qt.ItemIsEditable
         if self.dragable:
             flags |= Qt.ItemIsDragEnabled
@@ -176,7 +213,7 @@ class filemaster(QAbstractItemModel):
             if value is None:
                 return False
 
-        node.datas[index.column()] = value
+        node.setdata(index.column(), value)
         self.dataChanged.emit(index, index)
         self.save()
         return True
@@ -242,8 +279,8 @@ class filemaster(QAbstractItemModel):
     def setup(self, conf: Config) -> None:
         self.conf = conf
         self.fdp = conf.fdpath
-        for k, v in load_jsons(self.fdp).items():
-            self.appends(k, v)
+        for i in load_jsons(self.fdp).get('child', []):
+            self.appends(**i)
         self.save()
 
     def save(self):

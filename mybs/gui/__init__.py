@@ -1,9 +1,9 @@
-from . import ui_myui
+from . import ui_myui, datatable
 
-from mybs.typing import Config, QApplication, QMainWindow, QWidget, filemaster, Qt, QMenu
+from mybs.typing import Config, QApplication, QMainWindow, QWidget, Qt, QMenu
 from mybs.typing import QCursor, QEvent, QObject, QModelIndex, QFileDialog, QMessageBox, QStyledItemDelegate
 from mybs.typing import QLineEdit, QValidator, QLabel
-
+from mybs.filemaster import filemaster
 
 class MYGUI(QMainWindow):
 
@@ -45,19 +45,25 @@ class MYGUI(QMainWindow):
         # 真实文件发生改变时
         self.fm.fw.fileChanged.connect(self.chenge)
         # 编辑框
-        self.ui.ftree.setItemDelegate(Delegate())
+        self.ui.ftree.setItemDelegate(ui_myui.Delegate())
 
         self.ui.ftree.setAcceptDrops(True)
 
     # ======================== statbar ========================== #
 
     # ======================== datatab ========================== #
-
+        self.ui.tab.tabCloseRequested.connect(self.closetab)
+        self.ui.tab.setVisible(False)
     # ======================== Slot ========================== #
+    def closetab(self, index):
+        self.ui.tab.removeTab(index)
+        if self.ui.tab.count() == 0:
+            self.ui.tab.setVisible(False)
     def openfile(self, index: QModelIndex):
         ind = index.internalPointer()
         if ind.isfile:
-            print(ind.file)
+            self.ui.tab.addTab(datatable.myTableView(ind.file, ind.type, self.ui.tab), ind.file.name)
+            self.ui.tab.setVisible(True)
     def fileinfo(self, index: QModelIndex):
         ind = index.internalPointer()
         if i := ind.fileinfo():
@@ -96,7 +102,9 @@ class MYGUI(QMainWindow):
         filepaths = QFileDialog.getOpenFileNames(
             self,
             '来点文件！',
-            filter='json file(*.json *.JSON);;csv file(*.csv);;excel(*.excel)')
+            filter='all file(*.json *.JSON *.csv *.excel *.xls *.xlsx *.CSV);;'
+                'json file(*.json *.JSON);;csv file(*.csv);;excel file(*.excel *.xls *.xlsx)'
+                )
         ind = self.ui.ftree.currentIndex()
         ind = ind.internalPointer() if ind.isValid() else self.fm.rootnode
         if ind.isfile:
@@ -108,6 +116,7 @@ class MYGUI(QMainWindow):
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if watched == self.ui.ftree.viewport():
             if event.type() == QEvent.MouseButtonPress:
+                
                 if not self.ui.ftree.indexAt(event.pos()).isValid():
                     self.ui.ftree.setCurrentIndex(QModelIndex())
         return super().eventFilter(watched, event)
@@ -135,25 +144,4 @@ class MYGUI(QMainWindow):
         app.exec_()
 
 
-class Delegate(QStyledItemDelegate):
 
-    def __init__(self):
-        super().__init__()
-
-    def createEditor(self, parent, option, index):
-        editor = QLineEdit(parent)
-        # editor.setValidator(QValidator(parent))
-        return editor
-
-    def setEditorData(self, editor, index):
-        data = index.data()
-        editor.setText(data)
-
-    def setModelData(self, editor, model, index):
-        data = editor.text()
-        txt = data
-        model.setData(index, txt)
-
-    def updateEditorGeometry(self, editor, option, index):
-        r = option.rect
-        editor.setGeometry(r)

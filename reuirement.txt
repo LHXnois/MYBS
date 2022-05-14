@@ -1,2 +1,5 @@
 PySide6
 pydantic
+pandas
+xlrd
+openpyxl
